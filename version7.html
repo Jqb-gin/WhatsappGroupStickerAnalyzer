@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WhatsApp Studio | Mobile Ready</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0b0f19; color: #e2e8f0; -webkit-tap-highlight-color: transparent; }
+        .glass-panel { background: rgba(30, 41, 59, 0.4); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.05); }
+        
+        /* Pulse Animation for Mobile */
+        @keyframes shadow-pulse {
+            0% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0.4); }
+            70% { box-shadow: 0 0 0 20px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0px rgba(16, 185, 129, 0); }
+        }
+        .pulse-btn { animation: shadow-pulse 2s infinite; border-radius: 100%; }
+        
+        /* Mobile-First Transitions */
+        .member-item { transition: all 0.2s ease; border-left: 3px solid transparent; }
+        .member-item.active { border-left-color: #10b981; background: rgba(16, 185, 129, 0.1); }
+        .sticker-card { background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255,255,255,0.05); }
+
+        /* Ensure images load correctly */
+        .sticker-img { width: 100px; height: 100px; object-fit: contain; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.5)); }
+
+        .loader {
+            width: 48px; height: 48px;
+            border: 5px solid rgba(16, 185, 129, 0.2);
+            border-bottom-color: #10b981;
+            border-radius: 50%;
+            display: inline-block;
+            animation: rotation 1s linear infinite;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="min-h-screen p-3 md:p-8">
+
+    <div class="max-w-[1400px] mx-auto space-y-4">
+        
+        <header class="flex flex-col md:flex-row justify-between items-center gap-4 glass-panel p-5 rounded-2xl">
+            <div class="text-center md:text-left">
+                <h1 class="text-xl md:text-2xl font-bold text-white tracking-tight">WhatsApp <span class="text-emerald-500">Studio</span></h1>
+                <p class="text-slate-400 text-xs mt-1">Local. Secure. Private.</p>
+            </div>
+            <div id="filterBadge" class="hidden flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 rounded-xl">
+                <span class="text-[10px] text-emerald-400 uppercase font-bold tracking-wider">User:</span>
+                <span id="filterName" class="text-white text-sm font-medium truncate max-w-[100px]"></span>
+                <button onclick="clearFilter()" class="text-slate-400 hover:text-white ml-1">&times;</button>
+            </div>
+        </header>
+
+        <div id="dropZone" class="group relative overflow-hidden rounded-3xl glass-panel p-10 md:p-24 text-center cursor-pointer border-2 border-dashed border-slate-700 hover:border-emerald-500 transition-all duration-300">
+            <input type="file" id="fileInput" accept=".zip" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20">
+            
+            <div class="relative z-10 flex flex-col items-center justify-center">
+                <div class="w-20 h-20 mb-6 bg-emerald-500/10 rounded-full flex items-center justify-center pulse-btn">
+                    <svg class="w-10 h-10 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                </div>
+                <h2 class="text-2xl font-semibold text-white mb-3">Tap to Upload ZIP</h2>
+                <p class="text-slate-400 max-w-sm mx-auto text-sm">Select the exported <span class="text-emerald-400 font-mono">.zip</span> from your phone files or drag it here on a PC.</p>
+            </div>
+        </div>
+
+        <div id="loadingState" class="hidden flex-col items-center justify-center py-20 glass-panel rounded-3xl">
+            <span class="loader mb-6"></span>
+            <h2 class="text-xl font-semibold text-white mb-2">Processing...</h2>
+            <p id="loadingText" class="text-slate-400 font-mono text-xs">Extracting ZIP contents</p>
+        </div>
+
+        <div id="dashboard" class="hidden grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+            
+            <aside class="xl:col-span-3 glass-panel rounded-2xl flex flex-col h-[400px] xl:h-[calc(100vh-140px)] sticky xl:top-6 order-2 xl:order-1">
+                <div class="p-4 border-b border-slate-700/50">
+                    <h2 class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Chat Participants</h2>
+                </div>
+                <div id="memberList" class="flex-1 overflow-y-auto p-2 space-y-1">
+                    </div>
+            </aside>
+
+            <main class="xl:col-span-9 glass-panel rounded-2xl p-4 md:p-6 min-h-[400px] order-1 xl:order-2">
+                <div class="flex justify-between items-center mb-6 pb-4 border-b border-slate-700/50">
+                    <h2 class="text-lg font-bold text-white">Sticker Archive</h2>
+                    <div class="bg-slate-900 border border-slate-700 px-3 py-1 rounded-lg">
+                        <span id="stickerCount" class="text-emerald-400 font-bold">0</span>
+                    </div>
+                </div>
+
+                <div id="stickerGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+                    </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        let GLOBAL_DATA = {
+            rawMessages: [],
+            selectedUser: null,
+            mediaBlobUrls: {}
+        };
+
+        const DOM = {
+            dropZone: document.getElementById('dropZone'),
+            fileInput: document.getElementById('fileInput'),
+            loading: document.getElementById('loadingState'),
+            loadingText: document.getElementById('loadingText'),
+            dashboard: document.getElementById('dashboard'),
+            memberList: document.getElementById('memberList'),
+            stickerGrid: document.getElementById('stickerGrid'),
+            stickerCount: document.getElementById('stickerCount'),
+            filterBadge: document.getElementById('filterBadge'),
+            filterName: document.getElementById('filterName')
+        };
+
+        // --- Dual Input Trigger ---
+        DOM.fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file && file.name.endsWith('.zip')) {
+                beginProcessing(file);
+            }
+        });
+
+        // PC Drag Over Support
+        DOM.dropZone.addEventListener('dragover', e => { e.preventDefault(); DOM.dropZone.classList.add('border-emerald-500'); });
+        DOM.dropZone.addEventListener('dragleave', () => DOM.dropZone.classList.remove('border-emerald-500'));
+        DOM.dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.zip')) {
+                beginProcessing(file);
+            }
+        });
+
+        function beginProcessing(file) {
+            DOM.dropZone.classList.add('hidden');
+            DOM.loading.classList.remove('hidden');
+            DOM.loading.classList.add('flex');
+            processZip(file);
+        }
+
+        async function processZip(file) {
+            try {
+                const zip = new JSZip();
+                const loadedZip = await zip.loadAsync(file);
+                let chatText = null;
+                const filesToProcess = Object.keys(loadedZip.files);
+                
+                // Clear memory
+                Object.values(GLOBAL_DATA.mediaBlobUrls).forEach(URL.revokeObjectURL);
+                GLOBAL_DATA.mediaBlobUrls = {};
+
+                for (const fileName of filesToProcess) {
+                    DOM.loadingText.innerText = `Reading: ${fileName}`;
+                    if (fileName.endsWith('.txt')) {
+                        chatText = await loadedZip.files[fileName].async("string");
+                    } else if (fileName.endsWith('.webp')) {
+                        const blob = await loadedZip.files[fileName].async("blob");
+                        GLOBAL_DATA.mediaBlobUrls[fileName] = URL.createObjectURL(blob);
+                    }
+                }
+
+                if (!chatText) throw new Error("No chat log found.");
+                
+                parseChat(chatText);
+                DOM.loading.classList.add('hidden');
+                DOM.dashboard.classList.remove('hidden');
+
+            } catch (err) {
+                alert(err.message);
+                DOM.loading.classList.add('hidden');
+                DOM.dropZone.classList.remove('hidden');
+            }
+        }
+
+        function parseChat(text) {
+            GLOBAL_DATA.rawMessages = [];
+            const lines = text.split('\n');
+            const regex = /^(\d{1,2}\.\d{1,2}\.\d{4}),\s(\d{1,2}:\d{2})\s-\s([^:]+):\s([\s\S]*)/;
+            
+            lines.forEach(line => {
+                const clean = line.replace(/[\u200E\u200F\u202A\u202B\u202C]/g, '').trim();
+                const m = clean.match(regex);
+                if (m) {
+                    const msgText = m[4].trim();
+                    const isStk = msgText.includes('STK-') && (msgText.includes('(קובץ מצורף)') || msgText.includes('(file attached)'));
+                    GLOBAL_DATA.rawMessages.push({
+                        sender: m[3].trim(),
+                        isSticker: isStk,
+                        fileName: isStk ? msgText.split(' (')[0].trim() : null
+                    });
+                }
+            });
+            renderUI();
+        }
+
+        function filterByUser(name) {
+            GLOBAL_DATA.selectedUser = (GLOBAL_DATA.selectedUser === name) ? null : name;
+            DOM.filterBadge.classList.toggle('hidden', !GLOBAL_DATA.selectedUser);
+            DOM.filterName.innerText = name;
+            renderUI();
+        }
+
+        function clearFilter() {
+            GLOBAL_DATA.selectedUser = null;
+            DOM.filterBadge.classList.add('hidden');
+            renderUI();
+        }
+
+        function renderUI() {
+            const members = {};
+            const stickers = {};
+
+            GLOBAL_DATA.rawMessages.forEach(msg => {
+                if (!members[msg.sender]) members[msg.sender] = { total: 0, stickers: 0 };
+                members[msg.sender].total++;
+                if (msg.isSticker) members[msg.sender].stickers++;
+
+                if (msg.isSticker && msg.fileName) {
+                    if (GLOBAL_DATA.selectedUser && msg.sender !== GLOBAL_DATA.selectedUser) return;
+                    if (!stickers[msg.fileName]) stickers[msg.fileName] = { count: 0, senders: {} };
+                    stickers[msg.fileName].count++;
+                    stickers[msg.fileName].senders[msg.sender] = (stickers[msg.fileName].senders[msg.sender] || 0) + 1;
+                }
+            });
+
+            const sortedMembers = Object.entries(members).sort((a,b) => b[1].total - a[1].total);
+            DOM.memberList.innerHTML = sortedMembers.map(([name, s]) => `
+                <div onclick="filterByUser('${name}')" class="member-item p-3 rounded-xl mb-1 ${GLOBAL_DATA.selectedUser === name ? 'active' : ''}">
+                    <div class="text-sm font-bold truncate">${name}</div>
+                    <div class="text-[10px] text-slate-500 mt-1 flex gap-3">
+                        <span>💬 ${s.total}</span>
+                        <span>🎨 <span class="text-emerald-400">${s.stickers}</span></span>
+                    </div>
+                </div>
+            `).join('');
+
+            const sortedStks = Object.entries(stickers).sort((a,b) => b[1].count - a[1].count);
+            DOM.stickerCount.innerText = `${sortedStks.length} Stickers`;
+            
+            DOM.stickerGrid.innerHTML = sortedStks.map(([file, data]) => {
+                const senders = Object.entries(data.senders).sort((a,b) => b[1]-a[1]);
+                return `
+                <div class="sticker-card rounded-2xl p-4 flex flex-col h-full">
+                    <div class="relative flex flex-col items-center py-4">
+                        <span class="absolute top-0 right-0 text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">${data.count}</span>
+                        <img src="${GLOBAL_DATA.mediaBlobUrls[file] || ''}" class="sticker-img" onerror="this.src='https://via.placeholder.com/100/111827/4b5563?text=STK'">
+                    </div>
+                    <div class="mt-4 space-y-1">
+                        ${senders.map(([n, c]) => `
+                            <div class="relative w-full text-[10px] py-1 px-2 rounded bg-slate-800/50 flex justify-between items-center overflow-hidden">
+                                <div class="absolute left-0 top-0 bottom-0 bg-emerald-500/10" style="width: ${(c/data.count)*100}%"></div>
+                                <span class="relative z-10 truncate pr-2">${n}</span>
+                                <span class="relative z-10 font-bold text-emerald-400">${c}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;}).join('');
+        }
+    </script>
+</body>
+</html>
